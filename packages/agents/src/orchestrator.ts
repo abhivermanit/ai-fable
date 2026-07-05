@@ -8,10 +8,11 @@ import type {
   CreateTaskInput,
   TaskResult,
 } from '@ai-fable/core';
+import { randomUUID } from 'node:crypto';
 import { assertTransition, isTerminal } from './state-machine.js';
 import { TaskQueue } from './task-queue.js';
 import { EventBus } from './event-bus.js';
-import type { Planner, Worker, Verifier, TaskStore } from './interfaces.js';
+import type { Planner, Worker, Verifier, TaskStore, VerificationResult } from './interfaces.js';
 
 /**
  * Configuration for the Task Orchestrator.
@@ -25,15 +26,8 @@ export interface OrchestratorConfig {
   verifier: Verifier;
   /** Task persistence store */
   store: TaskStore;
-  /** Max retries per task (per ADR-0005 interim: cap at 1) */
+  /** Max retries per task (per ADR-0005 interim: cap conservatively) */
   maxRetries?: number;
-}
-
-/**
- * Generate a unique task ID.
- */
-function generateId(): string {
-  return `task-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 /**
@@ -48,6 +42,9 @@ export class Orchestrator {
   private readonly verifier: Verifier;
   private readonly store: TaskStore;
   private readonly maxRetries: number;
+
+  /** Active AbortControllers for running tasks, keyed by task ID. */
+  private readonly activeControllers = new Map<string, AbortController>();
 
   public readonly queue: TaskQueue;
   public readonly events: EventBus;
@@ -69,7 +66,7 @@ export class Orchestrator {
   async create(input: CreateTaskInput): Promise<Task> {
     const now = new Date().toISOString();
     const task: Task = {
-      id: generateId(),
+      id: randomUUID(),
       status: TaskStatus.Pending,
       priority: input.priority ?? TaskPriority.Normal,
       description: input.description,
@@ -86,6 +83,9 @@ export class Orchestrator {
       updatedAt: now,
     };
 
+    // TODO: save() calls should eventually be batched when a real
+    // persistence layer is introduced (Milestone 6). Currently each
+    // state transition triggers a separate save.
     await this.store.save(task);
     this.queue.enqueue(task);
     this.events.emit('task:created', { task });
@@ -109,7 +109,18 @@ export class Orchestrator {
    * Run a specific task through its full lifecycle.
    */
   async run(task: Task, signal?: AbortSignal): Promise<TaskResult> {
-    const abortSignal = signal ?? new AbortController().signal;
+    // Create an AbortController owned by this task execution.
+    // If an external signal is provided, forward its abort.
+    const controller = new AbortController();
+    this.activeControllers.set(task.id, controller);
+
+    if (signal) {
+      if (signal.aborted) {
+        controller.abort(signal.reason);
+      } else {
+        signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+      }
+    }
 
     try {
       // Phase 1: Planning
@@ -118,85 +129,27 @@ export class Orchestrator {
       task.steps = steps;
       await this.transition(task, TaskStatus.Planned);
 
-      // Phase 2: Execution
-      await this.transition(task, TaskStatus.Running);
-      task.startedAt = new Date().toISOString();
-      await this.store.save(task);
-
-      await this.executeSteps(task, abortSignal);
-
-      // Phase 3: Verification
-      await this.transition(task, TaskStatus.Verifying);
-      const verification = await this.verifier.verify(task);
-
-      if (verification.passed) {
-        // Success
-        const result: TaskResult = {
-          success: true,
-          steps: task.steps,
-          confidence: verification.confidence,
-          output: {},
-        };
-        task.result = result;
-        await this.transition(task, TaskStatus.Completed);
-        task.completedAt = new Date().toISOString();
-        await this.store.save(task);
-        this.events.emit('task:completed', { task });
-        return result;
-      }
-
-      // Verification failed — can we retry?
-      if (task.metadata.retryCount < task.metadata.maxRetries) {
-        task.metadata.retryCount++;
-        // Reset step statuses for retry
-        for (const step of task.steps) {
-          step.status = TaskStepStatus.Pending;
-          step.output = undefined;
-          step.error = undefined;
-        }
-        await this.transition(task, TaskStatus.Running);
-        await this.executeSteps(task, abortSignal);
-
-        // Re-verify after retry
-        await this.transition(task, TaskStatus.Verifying);
-        const retryVerification = await this.verifier.verify(task);
-
-        if (retryVerification.passed) {
-          const result: TaskResult = {
-            success: true,
-            steps: task.steps,
-            confidence: retryVerification.confidence,
-            output: {},
-          };
-          task.result = result;
-          await this.transition(task, TaskStatus.Completed);
-          task.completedAt = new Date().toISOString();
-          await this.store.save(task);
-          this.events.emit('task:completed', { task });
-          return result;
-        }
-      }
-
-      // All retries exhausted — fail
-      const failResult: TaskResult = {
-        success: false,
-        steps: task.steps,
-        confidence: verification.confidence,
-        error: {
-          code: 'VERIFICATION_FAILED',
-          message: `Verification failed after ${task.metadata.retryCount} retries`,
-          retryable: false,
-          details: { issues: verification.issues },
-        },
-      };
-      task.result = failResult;
-      await this.transition(task, TaskStatus.Failed);
-      task.completedAt = new Date().toISOString();
-      await this.store.save(task);
-      this.events.emit('task:failed', { task, error: failResult.error });
-      return failResult;
+      // Phase 2 & 3: Execute → Verify (with retry loop)
+      return await this.executeWithRetries(task, controller);
     } catch (error) {
-      // Unexpected error — fail the task
+      // Unexpected error — fail the task (if not already terminal)
+      // Re-check from store in case cancel() was called concurrently
+      const currentTask = await this.store.load(task.id);
+      if (currentTask && isTerminal(currentTask.status)) {
+        // Task was already moved to a terminal state (e.g., cancelled)
+        task.status = currentTask.status;
+        task.result = task.result ?? {
+          success: false,
+          steps: task.steps,
+          error: {
+            code: 'TASK_CANCELLED',
+            message: 'Task was cancelled',
+            retryable: false,
+          },
+        };
+        return task.result;
+      }
+
       if (!isTerminal(task.status)) {
         const failResult: TaskResult = {
           success: false,
@@ -214,18 +167,29 @@ export class Orchestrator {
         this.events.emit('task:failed', { task, error });
       }
       return task.result!;
+    } finally {
+      this.activeControllers.delete(task.id);
     }
   }
 
   /**
    * Cancel a task (if it's not already in a terminal state).
+   *
+   * If the task is currently running, signals the AbortController
+   * to stop execution immediately.
    */
   async cancel(taskId: string): Promise<boolean> {
     const task = await this.store.load(taskId);
     if (!task) return false;
     if (isTerminal(task.status)) return false;
 
-    // Try to remove from queue (if still queued)
+    // Signal abort to stop any running execution
+    const controller = this.activeControllers.get(taskId);
+    if (controller) {
+      controller.abort('Task cancelled');
+    }
+
+    // Remove from queue (if still queued)
     this.queue.remove(taskId);
 
     await this.transition(task, TaskStatus.Cancelled);
@@ -240,6 +204,103 @@ export class Orchestrator {
    */
   async get(taskId: string): Promise<Task | undefined> {
     return this.store.load(taskId);
+  }
+
+  /**
+   * Execute steps and verify, retrying up to maxRetries times on verification failure.
+   */
+  private async executeWithRetries(task: Task, controller: AbortController): Promise<TaskResult> {
+    let lastVerification: VerificationResult | undefined;
+
+    // Initial execution + up to maxRetries retries
+    for (let attempt = 0; attempt <= task.metadata.maxRetries; attempt++) {
+      // Check for cancellation before starting execution
+      if (controller.signal.aborted) {
+        // Task was cancelled — don't proceed. The cancel() method
+        // handles the state transition.
+        return {
+          success: false,
+          steps: task.steps,
+          error: {
+            code: 'TASK_CANCELLED',
+            message: 'Task was cancelled',
+            retryable: false,
+          },
+        };
+      }
+
+      if (attempt > 0) {
+        // This is a retry — reset step statuses
+        task.metadata.retryCount = attempt;
+        for (const step of task.steps) {
+          step.status = TaskStepStatus.Pending;
+          step.output = undefined;
+          step.error = undefined;
+        }
+      }
+
+      // Execute
+      await this.transition(task, TaskStatus.Running);
+      if (attempt === 0) {
+        task.startedAt = new Date().toISOString();
+      }
+      await this.store.save(task);
+
+      await this.executeSteps(task, controller.signal);
+
+      // Check for cancellation after execution completes
+      if (controller.signal.aborted) {
+        return {
+          success: false,
+          steps: task.steps,
+          error: {
+            code: 'TASK_CANCELLED',
+            message: 'Task was cancelled',
+            retryable: false,
+          },
+        };
+      }
+
+      // Verify
+      await this.transition(task, TaskStatus.Verifying);
+      lastVerification = await this.verifier.verify(task);
+
+      if (lastVerification.passed) {
+        const result: TaskResult = {
+          success: true,
+          steps: task.steps,
+          confidence: lastVerification.confidence,
+          output: {},
+        };
+        task.result = result;
+        await this.transition(task, TaskStatus.Completed);
+        task.completedAt = new Date().toISOString();
+        await this.store.save(task);
+        this.events.emit('task:completed', { task });
+        return result;
+      }
+
+      // Verification failed — loop will retry if attempts remain
+    }
+
+    // All retries exhausted — fail using the LAST verification result
+    const failResult: TaskResult = {
+      success: false,
+      steps: task.steps,
+      confidence: lastVerification!.confidence,
+      error: {
+        code: 'VERIFICATION_FAILED',
+        message: `Verification failed after ${task.metadata.retryCount} retries`,
+        retryable: false,
+        details: { issues: lastVerification!.issues },
+      },
+    };
+    task.result = failResult;
+    await this.transition(task, TaskStatus.Failed);
+    task.completedAt = new Date().toISOString();
+    await this.store.save(task);
+    this.events.emit('task:failed', { task, error: failResult.error });
+    return failResult;
   }
 
   /**
@@ -295,10 +356,15 @@ export class Orchestrator {
    * Transition a task to a new status, validating the state machine.
    */
   private async transition(task: Task, to: TaskStatus): Promise<void> {
+    // If task is already cancelled (via concurrent cancel()), don't transition
+    if (isTerminal(task.status)) return;
+
     const from = task.status;
     assertTransition(from, to);
     task.status = to;
     task.updatedAt = new Date().toISOString();
+    // TODO: save() calls should eventually be batched when a real
+    // persistence layer is introduced (Milestone 6).
     await this.store.save(task);
     this.events.emit('task:status-changed', { task, from, to });
   }

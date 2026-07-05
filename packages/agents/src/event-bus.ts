@@ -21,7 +21,12 @@ type EventHandler<E extends EventName> = (payload: OrchestratorEvents[E]) => voi
  * A typed event bus for orchestrator lifecycle events.
  *
  * Handlers are invoked synchronously in registration order.
- * Async handlers are fire-and-forget (errors are swallowed and logged).
+ * Async handlers are fire-and-forget (errors are logged but do not
+ * interrupt other handlers or the emitting code).
+ *
+ * TODO: Replace console.error with a proper Logger service once
+ * the logging infrastructure is built. The Logger should support
+ * structured logging, log levels, and configurable transports.
  */
 export class EventBus {
   private handlers = new Map<EventName, Set<EventHandler<EventName>>>();
@@ -44,6 +49,9 @@ export class EventBus {
 
   /**
    * Emit an event, invoking all registered handlers.
+   *
+   * Handler errors are logged but do not propagate to the caller
+   * or prevent other handlers from executing.
    */
   emit<E extends EventName>(event: E, payload: OrchestratorEvents[E]): void {
     const set = this.handlers.get(event);
@@ -52,14 +60,22 @@ export class EventBus {
     for (const handler of set) {
       try {
         const result = handler(payload);
-        // If async, catch errors silently
+        // If async, catch and log errors
         if (result && typeof result === 'object' && 'catch' in result) {
-          (result as Promise<void>).catch(() => {
-            // Swallow async errors in event handlers
+          (result as Promise<void>).catch((err: unknown) => {
+            // TODO: Use Logger service instead of console.error
+            console.error(
+              `[EventBus] Async handler error for event "${event}":`,
+              err,
+            );
           });
         }
-      } catch {
-        // Swallow sync errors in event handlers
+      } catch (err: unknown) {
+        // TODO: Use Logger service instead of console.error
+        console.error(
+          `[EventBus] Sync handler error for event "${event}":`,
+          err,
+        );
       }
     }
   }

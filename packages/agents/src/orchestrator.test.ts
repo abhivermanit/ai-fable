@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { TaskStatus, TaskPriority, TaskStepStatus } from '@ai-fable/core';
 import type { Task, TaskStep } from '@ai-fable/core';
 import { Orchestrator } from './orchestrator.js';
@@ -34,6 +34,16 @@ describe('Orchestrator', () => {
       expect(task.priority).toBe(TaskPriority.Normal);
       expect(task.steps).toEqual([]);
       expect(task.metadata.retryCount).toBe(0);
+    });
+
+    it('generates UUID-format task IDs', async () => {
+      const orch = createOrchestrator();
+      const task = await orch.create({ description: 'uuid test' });
+
+      // UUID v4 format: 8-4-4-4-12 hex chars
+      expect(task.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
     });
 
     it('assigns custom priority', async () => {
@@ -171,6 +181,69 @@ describe('Orchestrator', () => {
       const loaded = await orch.get(task.id);
       expect(loaded!.status).toBe(TaskStatus.Failed);
     });
+
+    it('retry failure path uses the LAST verification result', async () => {
+      let callCount = 0;
+      const verifier: Verifier = {
+        async verify() {
+          callCount++;
+          // Each call returns a different confidence so we can verify which is used
+          return {
+            passed: false,
+            confidence: callCount * 0.1, // 0.1, 0.2, 0.3
+            issues: [{ severity: 'error', message: `fail #${callCount}` }],
+          };
+        },
+      };
+
+      const orch = createOrchestrator({ verifier, maxRetries: 2 });
+      const task = await orch.create({ description: 'retry failure path' });
+      const result = await orch.run(task);
+
+      expect(result.success).toBe(false);
+      // Should be 0.3 (third call), not 0.1 (first call)
+      expect(result.confidence).toBeCloseTo(0.3);
+      expect(result.error?.message).toContain('2 retries');
+      expect(callCount).toBe(3); // initial + 2 retries
+    });
+
+    it('supports maxRetries > 1', async () => {
+      let callCount = 0;
+      const verifier: Verifier = {
+        async verify() {
+          callCount++;
+          if (callCount <= 3) {
+            return { passed: false, confidence: 0.1 * callCount, issues: [{ severity: 'error', message: 'not yet' }] };
+          }
+          return { passed: true, confidence: 0.95, issues: [] };
+        },
+      };
+
+      const orch = createOrchestrator({ verifier, maxRetries: 3 });
+      const task = await orch.create({ description: 'retry 3 times' });
+      const result = await orch.run(task);
+
+      expect(result.success).toBe(true);
+      expect(result.confidence).toBe(0.95);
+      expect(callCount).toBe(4); // initial + 3 retries
+    });
+
+    it('maxRetries=0 means no retries', async () => {
+      let callCount = 0;
+      const verifier: Verifier = {
+        async verify() {
+          callCount++;
+          return { passed: false, confidence: 0.1, issues: [{ severity: 'error', message: 'nope' }] };
+        },
+      };
+
+      const orch = createOrchestrator({ verifier, maxRetries: 0 });
+      const task = await orch.create({ description: 'no retries' });
+      const result = await orch.run(task);
+
+      expect(result.success).toBe(false);
+      expect(callCount).toBe(1);
+    });
   });
 
   describe('run (execution failure)', () => {
@@ -214,6 +287,91 @@ describe('Orchestrator', () => {
       expect(result.success).toBe(false);
       expect(result.error?.message).toContain('No worker registered');
     });
+
+    it('fails if planner throws', async () => {
+      const planner: Planner = {
+        async plan() {
+          throw new Error('planner crashed');
+        },
+      };
+
+      const orch = createOrchestrator({ planner });
+      const task = await orch.create({ description: 'planner will throw' });
+      const result = await orch.run(task);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('EXECUTION_ERROR');
+      expect(result.error?.message).toContain('planner crashed');
+
+      const loaded = await orch.get(task.id);
+      expect(loaded!.status).toBe(TaskStatus.Failed);
+    });
+
+    it('fails if verifier throws', async () => {
+      const verifier: Verifier = {
+        async verify() {
+          throw new Error('verifier crashed');
+        },
+      };
+
+      const orch = createOrchestrator({ verifier });
+      const task = await orch.create({ description: 'verifier will throw' });
+      const result = await orch.run(task);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('EXECUTION_ERROR');
+      expect(result.error?.message).toContain('verifier crashed');
+
+      const loaded = await orch.get(task.id);
+      expect(loaded!.status).toBe(TaskStatus.Failed);
+    });
+
+    it('handles empty plan (no steps)', async () => {
+      const planner: Planner = {
+        async plan(): Promise<TaskStep[]> {
+          return [];
+        },
+      };
+
+      const orch = createOrchestrator({ planner });
+      const task = await orch.create({ description: 'empty plan' });
+      const result = await orch.run(task);
+
+      // Empty plan still goes through verify — stub verifier passes
+      expect(result.success).toBe(true);
+      expect(result.steps).toEqual([]);
+    });
+
+    it('handles worker timeout via AbortSignal', async () => {
+      const slowWorker: Worker = {
+        agentType: 'stub',
+        async execute(_step: TaskStep, context: WorkerContext) {
+          // Simulate a slow worker that respects abort
+          return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => resolve({ done: true }), 10000);
+            context.signal.addEventListener('abort', () => {
+              clearTimeout(timer);
+              reject(new Error('aborted'));
+            });
+          });
+        },
+      };
+
+      const orch = createOrchestrator({
+        workers: new Map([['stub', slowWorker]]),
+      });
+
+      const task = await orch.create({ description: 'timeout test' });
+
+      // Use an external signal that we abort quickly
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 10);
+
+      const result = await orch.run(task, controller.signal);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('EXECUTION_ERROR');
+    });
   });
 
   describe('runNext', () => {
@@ -234,7 +392,6 @@ describe('Orchestrator', () => {
     });
 
     it('respects priority ordering', async () => {
-      const orch = createOrchestrator();
       const results: string[] = [];
 
       const planner: Planner = {
@@ -250,12 +407,12 @@ describe('Orchestrator', () => {
         },
       };
 
-      const orch2 = createOrchestrator({ planner });
-      await orch2.create({ description: 'low', priority: TaskPriority.Low });
-      await orch2.create({ description: 'high', priority: TaskPriority.High });
+      const orch = createOrchestrator({ planner });
+      await orch.create({ description: 'low', priority: TaskPriority.Low });
+      await orch.create({ description: 'high', priority: TaskPriority.High });
 
-      await orch2.runNext();
-      await orch2.runNext();
+      await orch.runNext();
+      await orch.runNext();
 
       expect(results[0]).toBe('high');
       expect(results[1]).toBe('low');
@@ -307,6 +464,56 @@ describe('Orchestrator', () => {
 
       await orch.cancel(task.id);
       expect(orch.queue.size).toBe(0);
+    });
+
+    it('cancels a running task by signalling its AbortController', async () => {
+      let stepStarted = false;
+      let stepAborted = false;
+
+      const slowWorker: Worker = {
+        agentType: 'stub',
+        async execute(_step: TaskStep, context: WorkerContext) {
+          stepStarted = true;
+          return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => resolve({ done: true }), 10000);
+            context.signal.addEventListener('abort', () => {
+              stepAborted = true;
+              clearTimeout(timer);
+              reject(new Error('aborted'));
+            });
+          });
+        },
+      };
+
+      const store = new InMemoryTaskStore();
+      const orch = createOrchestrator({
+        workers: new Map([['stub', slowWorker]]),
+        store,
+      });
+
+      const task = await orch.create({ description: 'cancel while running' });
+
+      // Start running in the background
+      const runPromise = orch.run(task);
+
+      // Wait for the worker to start
+      await vi.waitFor(() => {
+        expect(stepStarted).toBe(true);
+      });
+
+      // Cancel while running
+      const cancelled = await orch.cancel(task.id);
+      expect(cancelled).toBe(true);
+
+      // Wait for run to complete
+      const result = await runPromise;
+
+      expect(stepAborted).toBe(true);
+      expect(result.success).toBe(false);
+
+      // Final state must be Cancelled
+      const loaded = await store.load(task.id);
+      expect(loaded!.status).toBe(TaskStatus.Cancelled);
     });
   });
 

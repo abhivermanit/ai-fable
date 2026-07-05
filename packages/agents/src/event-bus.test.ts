@@ -65,8 +65,9 @@ describe('EventBus', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('swallows sync errors in handlers', () => {
+  it('logs sync errors but does not throw or block other handlers', () => {
     const bus = new EventBus();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const badHandler = vi.fn(() => {
       throw new Error('boom');
     });
@@ -80,6 +81,10 @@ describe('EventBus', () => {
 
     expect(badHandler).toHaveBeenCalledOnce();
     expect(goodHandler).toHaveBeenCalledOnce();
+    expect(consoleSpy).toHaveBeenCalledOnce();
+    expect(consoleSpy.mock.calls[0][0]).toContain('[EventBus]');
+
+    consoleSpy.mockRestore();
   });
 
   it('clear() removes all handlers', () => {
