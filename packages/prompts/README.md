@@ -1,6 +1,6 @@
 # @ai-fable/prompts
 
-Prompt templates and management for the AI Browser Agent.
+Prompt templates and management for AI Fable.
 
 ## Scripts
 

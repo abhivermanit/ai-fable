@@ -1,6 +1,6 @@
 # @ai-fable/agents
 
-Agent orchestration logic for the AI Browser Agent.
+Agent orchestration logic for AI Fable.
 
 ## Scripts
 

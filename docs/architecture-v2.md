@@ -1,6 +1,6 @@
 # AI Fable Architecture v2
 
-**Status:** Draft for Review\
+**Status:** Superseded by [architecture.md](./architecture.md)\
 **Version:** 2.0
 
 ## Vision

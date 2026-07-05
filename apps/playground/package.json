@@ -2,7 +2,7 @@
   "name": "@ai-fable/playground",
   "version": "0.0.0",
   "private": true,
-  "description": "Interactive playground for testing AI Browser Agent",
+  "description": "Interactive playground for testing",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

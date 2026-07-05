@@ -38,3 +38,7 @@ The reviewer:
 - The reviewer is a first-class package, not a plugin or extension of the agent.
 - It may share prompt utilities with `@ai-fable/prompts` but owns its review-specific prompts.
 - Other packages should not import from `@ai-fable/reviewer`. It is a leaf node in the dependency graph (except for apps).
+
+## Follow-up
+
+No further action required. The reviewer is complete as Milestone 1. Future enhancements (additional review passes, CI integration improvements) do not require architectural changes.

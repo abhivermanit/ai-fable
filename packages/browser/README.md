@@ -1,6 +1,6 @@
 # @ai-fable/browser
 
-Browser automation primitives for the AI Browser Agent.
+Browser automation primitives for AI Fable.
 
 ## Scripts
 

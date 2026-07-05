@@ -30,7 +30,7 @@ This is a real gap: Execution Runtime has direct access to git, filesystem, Dock
 
 - Execution Runtime work should default to isolated branches or worktrees per task where feasible, since this keeps all rollback options open regardless of which is eventually chosen.
 - Do not implement automatic retry logic in the Task Orchestrator that assumes unlimited retries or silent failure suppression — cap retries conservatively (e.g., 1) as an interim default until this ADR resolves.
-- Any step that performs an irreversible action (`git push`, PR creation) must go through the Policy & Approval Engine regardless of retry/rollback strategy — this is already required by existing design principles and is not affected by this ADR.
+- Any step that performs an irreversible action (`git push`, PR creation) must go through the Policy Engine regardless of retry/rollback strategy — this is already required by existing design principles and is not affected by this ADR.
 
 ## Consequences of remaining undecided
 

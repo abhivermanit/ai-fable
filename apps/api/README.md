@@ -1,6 +1,6 @@
 # @ai-fable/api
 
-Backend API server for the AI Browser Agent.
+Backend API server for AI Fable.
 
 ## Scripts
 

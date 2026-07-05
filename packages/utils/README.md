@@ -1,6 +1,6 @@
 # @ai-fable/utils
 
-Shared utilities for the AI Browser Agent.
+Shared utilities for AI Fable.
 
 ## Scripts
 

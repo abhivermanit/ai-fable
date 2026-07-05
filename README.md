@@ -1,6 +1,6 @@
 # AI Fable
 
-AI Browser Agent Monorepo.
+Software engineering control plane — monorepo.
 
 ## Structure
 
@@ -12,9 +12,11 @@ apps/
 packages/
   agents/       — Agent orchestration logic
   browser/      — Browser automation primitives
+  core/         — Shared interfaces, types, and constants
   memory/       — Memory and state management
-  models/       — LLM model integrations
+  models/       — LLM model integrations (Model Gateway)
   prompts/      — Prompt templates and management
+  reviewer/     — Code review agent (Milestone 1)
   tools/        — Tool definitions for agents
   utils/        — Shared utilities
 

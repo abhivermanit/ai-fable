@@ -1,6 +1,6 @@
 # @ai-fable/memory
 
-Memory and state management for the AI Browser Agent.
+Memory and state management for AI Fable.
 
 ## Scripts
 

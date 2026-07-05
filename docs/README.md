@@ -4,4 +4,6 @@ Project documentation for AI Fable.
 
 ## Contents
 
-This directory contains architectural decisions, guides, and reference material for the AI Browser Agent monorepo.
+- [Architecture](./architecture.md) — Canonical frozen architecture reference
+- [Roadmap](./roadmap.md) — Build sequence and milestones
+- [ADRs](./adr/) — Architecture Decision Records

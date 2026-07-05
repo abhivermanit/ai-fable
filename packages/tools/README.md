@@ -1,6 +1,6 @@
 # @ai-fable/tools
 
-Tool definitions for the AI Browser Agent.
+Tool definitions for AI Fable.
 
 ## Scripts
 
