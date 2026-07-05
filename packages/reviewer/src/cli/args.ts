@@ -1,4 +1,6 @@
-import type { CliOptions } from '../types/index.js';
+import type { ReviewerConfig } from '../core/config.js';
+import { createDefaultConfig } from '../core/config.js';
+import { InvalidArgumentError } from '../core/errors.js';
 
 const USAGE = `
 AI Fable Reviewer
@@ -24,63 +26,61 @@ Examples:
 `.trim();
 
 /**
- * Parse CLI arguments into typed options.
- * Returns null and prints usage if arguments are invalid.
+ * Result of argument parsing.
  */
-export function parseArgs(argv: string[]): CliOptions | null {
-  const options: CliOptions = {
-    mode: 'staged',
-    output: './reviews',
-    json: false,
-    markdown: true,
-    help: false,
-  };
+export type ParseResult =
+  | { ok: true; config: ReviewerConfig; help: false }
+  | { ok: true; config: null; help: true }
+  | { ok: false; error: InvalidArgumentError };
+
+/**
+ * Parse CLI arguments into a ReviewerConfig.
+ */
+export function parseArgs(argv: string[]): ParseResult {
+  const config = createDefaultConfig();
+  let jsonExplicit = false;
+  let markdownExplicit = false;
 
   for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
+    const arg = argv[i]!;
 
     switch (arg) {
       case '--staged':
-        options.mode = 'staged';
+        config.mode = 'staged';
         break;
       case '--all':
-        options.mode = 'all';
+        config.mode = 'all';
         break;
       case '--output': {
         const next = argv[i + 1];
         if (!next || next.startsWith('--')) {
-          console.error('Error: --output requires a directory path.');
-          console.log('');
-          console.log(USAGE);
-          return null;
+          return { ok: false, error: new InvalidArgumentError('--output', 'requires a directory path') };
         }
-        options.output = next;
+        config.outputDirectory = next;
         i++;
         break;
       }
       case '--json':
-        options.json = true;
+        config.json = true;
+        jsonExplicit = true;
         break;
       case '--markdown':
-        options.markdown = true;
+        config.markdown = true;
+        markdownExplicit = true;
         break;
       case '--help':
-        options.help = true;
-        break;
+        return { ok: true, config: null, help: true };
       default:
-        console.error(`Unknown option: ${arg}`);
-        console.log('');
-        console.log(USAGE);
-        return null;
+        return { ok: false, error: new InvalidArgumentError(arg, 'unknown option') };
     }
   }
 
-  // If only --json is specified without --markdown, disable markdown
-  if (options.json && !argv.includes('--markdown')) {
-    options.markdown = false;
+  // If only --json specified without explicit --markdown, disable markdown
+  if (jsonExplicit && !markdownExplicit) {
+    config.markdown = false;
   }
 
-  return options;
+  return { ok: true, config, help: false };
 }
 
 /**

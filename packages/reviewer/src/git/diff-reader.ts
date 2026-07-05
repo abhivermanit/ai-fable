@@ -3,6 +3,18 @@ import type { DiffFile, DiffHunk } from '@ai-fable/core';
 import type { DiffMode } from '../types/index.js';
 
 /**
+ * Maximum diff size in bytes that the reader will process.
+ * Diffs larger than this are rejected to prevent memory exhaustion.
+ *
+ * Default: 10 MB. Configurable via ReviewerConfig.maxDiffSize.
+ *
+ * NOTE: The diff reader loads the full diff into memory as a single string.
+ * For repositories with very large diffs (asset changes, migrations),
+ * consider using --staged mode or splitting commits.
+ */
+export const MAX_DIFF_SIZE_BYTES = 10 * 1024 * 1024;
+
+/**
  * Read the staged diff.
  */
 export function getStagedDiff(cwd?: string): string {

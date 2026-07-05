@@ -1,3 +1,19 @@
+// Core
+export type { ReviewerConfig } from './core/index.js';
+export {
+  createDefaultConfig,
+  createConfig,
+  ReviewerError,
+  GitNotFoundError,
+  NotARepositoryError,
+  EmptyDiffError,
+  DiffTooLargeError,
+  PermissionDeniedError,
+  InvalidArgumentError,
+  logger,
+} from './core/index.js';
+export type { LogLevel } from './core/index.js';
+
 // Git layer
 export {
   isGitRepository,
@@ -13,6 +29,7 @@ export {
   getWorkingTreeDiff,
   parseDiff,
 } from './git/index.js';
+export { MAX_DIFF_SIZE_BYTES } from './git/diff-reader.js';
 
 // Filtering & chunking
 export { filterFiles, shouldSkip } from './utils/filter.js';
