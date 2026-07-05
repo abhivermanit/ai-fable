@@ -26,7 +26,9 @@ export {
 export { FileRegistry } from './file-registry.js';
 
 // Symbol Extraction
+export type { SymbolExtractor } from './symbol-extractor.js';
 export {
+  RegexSymbolExtractor,
   extractSymbols,
   extractImports,
   extractSymbolsFromFile,

@@ -1,4 +1,5 @@
-import type { SymbolInfo, ImportInfo, SearchResult, ImpactResult } from './types.js';
+import type { SymbolInfo, SearchResult, ImpactResult } from './types.js';
+import type { SymbolKind } from './types.js';
 import type { RepoIndex } from './indexer.js';
 
 /**
@@ -6,24 +7,47 @@ import type { RepoIndex } from './indexer.js';
  *
  * Provides symbol lookup, path lookup, reference lookup, and text search
  * without requiring an LLM.
+ *
+ * Symbol lookups use pre-built indexes (O(1) by name, O(1) by kind)
+ * rather than iterating all files.
  */
 export class SearchAPI {
   constructor(private readonly index: RepoIndex) {}
 
   /**
-   * Find where a symbol is defined.
+   * Find where a symbol is defined (exact name match).
+   *
+   * Uses the symbolsByName index for O(1) lookup.
    *
    * Example: "Where is TaskStatus defined?"
    */
   findSymbol(name: string): SearchResult[] {
-    const results: SearchResult[] = [];
+    const symbols = this.index.symbolsByName.get(name);
+    if (!symbols) return [];
 
-    for (const [filePath, symbols] of this.index.symbols) {
-      for (const symbol of symbols) {
-        if (symbol.name === name) {
+    return symbols.map((symbol) => ({
+      type: 'symbol' as const,
+      filePath: symbol.filePath,
+      symbol,
+      line: symbol.line,
+    }));
+  }
+
+  /**
+   * Find symbols matching a pattern (case-insensitive partial match).
+   *
+   * Falls back to iterating the name index keys for partial matching.
+   */
+  searchSymbols(query: string): SearchResult[] {
+    const results: SearchResult[] = [];
+    const lowerQuery = query.toLowerCase();
+
+    for (const [name, symbols] of this.index.symbolsByName) {
+      if (name.toLowerCase().includes(lowerQuery)) {
+        for (const symbol of symbols) {
           results.push({
             type: 'symbol',
-            filePath,
+            filePath: symbol.filePath,
             symbol,
             line: symbol.line,
           });
@@ -35,26 +59,20 @@ export class SearchAPI {
   }
 
   /**
-   * Find symbols matching a pattern (case-insensitive partial match).
+   * Find symbols of a specific kind.
+   *
+   * Uses the symbolsByKind index for O(1) lookup.
    */
-  searchSymbols(query: string): SearchResult[] {
-    const results: SearchResult[] = [];
-    const lowerQuery = query.toLowerCase();
+  findByKind(kind: SymbolKind): SearchResult[] {
+    const symbols = this.index.symbolsByKind.get(kind);
+    if (!symbols) return [];
 
-    for (const [filePath, symbols] of this.index.symbols) {
-      for (const symbol of symbols) {
-        if (symbol.name.toLowerCase().includes(lowerQuery)) {
-          results.push({
-            type: 'symbol',
-            filePath,
-            symbol,
-            line: symbol.line,
-          });
-        }
-      }
-    }
-
-    return results;
+    return symbols.map((symbol) => ({
+      type: 'symbol' as const,
+      filePath: symbol.filePath,
+      symbol,
+      line: symbol.line,
+    }));
   }
 
   /**
@@ -71,7 +89,6 @@ export class SearchAPI {
     for (const dep of dependents) {
       if (!seen.has(dep)) {
         seen.add(dep);
-        // Find the specific import line
         const fileImports = this.index.imports.get(dep);
         const matchingImport = fileImports?.find((imp) => imp.resolvedPath === targetPath);
         results.push({
@@ -87,7 +104,6 @@ export class SearchAPI {
     for (const [filePath, fileImports] of this.index.imports) {
       if (seen.has(filePath)) continue;
       for (const imp of fileImports) {
-        // Match if specifier contains the target filename (without extension)
         const targetBase = targetPath.replace(/\.[^.]+$/, '').split('/').pop() ?? '';
         if (targetBase && imp.moduleSpecifier.includes(targetBase)) {
           seen.add(filePath);
@@ -159,11 +175,10 @@ export class SearchAPI {
   }
 
   /**
-   * Get files that changed since last index (from registry change detection).
+   * Get files that changed in the last indexing operation.
    */
   changedFiles(): string[] {
-    // This is tracked during indexing; expose the registry for comparison
-    return [];
+    return this.index.getLastChangedFiles();
   }
 
   /**

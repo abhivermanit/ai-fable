@@ -3,53 +3,74 @@ import type { SymbolInfo, ImportInfo } from './types.js';
 import { SymbolKind, Language } from './types.js';
 
 /**
+ * Interface for symbol extraction strategies.
+ *
+ * The current implementation uses regex-based extraction. Future implementations
+ * can use Tree-sitter or the TypeScript compiler API for full AST analysis.
+ * Swap the implementation without changing the indexer or search layers.
+ */
+export interface SymbolExtractor {
+  /**
+   * Extract symbol definitions from source code content.
+   */
+  extractSymbols(content: string, filePath: string): SymbolInfo[];
+
+  /**
+   * Extract import/export statements from source code content.
+   */
+  extractImports(content: string, filePath: string): ImportInfo[];
+}
+
+/**
  * Regex patterns for extracting TypeScript/JavaScript symbols.
  *
- * These are intentionally simple. They cover the common patterns
- * found in a TypeScript codebase without requiring a full parser.
- * For complex cases (nested destructuring, multi-line signatures),
- * a proper AST parser (ts-morph) can replace this in the future.
+ * Limitations of this approach:
+ * - Does not handle multi-line declarations
+ * - Does not resolve re-exported symbols to their original definition
+ * - Does not support tsconfig path aliases
+ * - Cannot detect symbols inside decorators or computed property names
+ * - May miss arrow-function class properties (e.g., `filter = (x) => x`)
+ *
+ * A proper AST-based implementation (Tree-sitter or ts-morph) should
+ * replace this once the project needs deeper semantic analysis.
  */
 const PATTERNS = {
-  // export function name(
   exportedFunction: /^export\s+(?:async\s+)?function\s*\*?\s+(\w+)/,
-  // export default function name(
   exportedDefaultFunction: /^export\s+default\s+(?:async\s+)?function\s*\*?\s+(\w+)/,
-  // function name(
   localFunction: /^(?:async\s+)?function\s*\*?\s+(\w+)/,
-  // export const/let/var name =
   exportedVariable: /^export\s+(?:const|let|var)\s+(\w+)/,
-  // const/let/var name =
   localVariable: /^(?:const|let|var)\s+(\w+)\s*(?::\s*\S+)?\s*=/,
-  // export class Name
   exportedClass: /^export\s+(?:abstract\s+)?class\s+(\w+)/,
-  // export default class Name
   exportedDefaultClass: /^export\s+default\s+(?:abstract\s+)?class\s+(\w+)/,
-  // class Name
   localClass: /^(?:abstract\s+)?class\s+(\w+)/,
-  // export interface Name
   exportedInterface: /^export\s+interface\s+(\w+)/,
-  // interface Name
   localInterface: /^interface\s+(\w+)/,
-  // export type Name =
   exportedTypeAlias: /^export\s+type\s+(\w+)\s*[=<{]/,
-  // type Name =
   localTypeAlias: /^type\s+(\w+)\s*[=<{]/,
-  // export enum Name
   exportedEnum: /^export\s+enum\s+(\w+)/,
-  // enum Name
   localEnum: /^enum\s+(\w+)/,
-  // export namespace Name
   exportedNamespace: /^export\s+namespace\s+(\w+)/,
-  // namespace Name
   localNamespace: /^namespace\s+(\w+)/,
-  // import ... from '...'
   importStatement: /^import\s+(?:type\s+)?(.+?)\s+from\s+['"](.+?)['"]/,
-  // import '...'  (side-effect import)
   sideEffectImport: /^import\s+['"](.+?)['"]/,
-  // export ... from '...' (re-export)
   reExport: /^export\s+(?:type\s+)?(?:\{[^}]*\}|\*(?:\s+as\s+\w+)?)\s+from\s+['"](.+?)['"]/,
 };
+
+/**
+ * Regex-based symbol extractor for TypeScript/JavaScript.
+ *
+ * Implements the SymbolExtractor interface using line-by-line regex matching.
+ * Suitable for fast, approximate analysis of typical TS/JS codebases.
+ */
+export class RegexSymbolExtractor implements SymbolExtractor {
+  extractSymbols(content: string, filePath: string): SymbolInfo[] {
+    return extractSymbols(content, filePath);
+  }
+
+  extractImports(content: string, filePath: string): ImportInfo[] {
+    return extractImports(content, filePath);
+  }
+}
 
 /**
  * Extract symbols from a TypeScript/JavaScript source file.
@@ -73,7 +94,6 @@ export function extractSymbols(content: string, filePath: string): SymbolInfo[] 
       symbols.push({ name: match[1], kind: SymbolKind.Function, filePath, line: lineNum, column: 0, exported: true, isDefault: false });
       continue;
     }
-    // Local functions
     match = line.match(PATTERNS.localFunction);
     if (match && !line.startsWith('export')) {
       symbols.push({ name: match[1], kind: SymbolKind.Function, filePath, line: lineNum, column: 0, exported: false, isDefault: false });
@@ -175,7 +195,7 @@ export function extractImports(content: string, filePath: string): ImportInfo[] 
         sourceFile: filePath,
         moduleSpecifier: specifier,
         isPackageImport: !specifier.startsWith('.') && !specifier.startsWith('/'),
-        importedNames: [], // Could parse but re-exports vary in form
+        importedNames: [],
         line: lineNum,
       });
       continue;
@@ -216,17 +236,12 @@ export function extractImports(content: string, filePath: string): ImportInfo[] 
 
 /**
  * Parse imported names from an import clause.
- * e.g., "{ foo, bar as baz }" → ['foo', 'bar']
- * e.g., "* as ns" → ['*']
- * e.g., "Default" → ['default']
  */
 function parseImportNames(clause: string): string[] {
   const trimmed = clause.trim();
 
-  // Namespace import: * as name
   if (trimmed.startsWith('*')) return ['*'];
 
-  // Named imports: { name1, name2 }
   const braceMatch = trimmed.match(/\{([^}]+)\}/);
   if (braceMatch) {
     const names: string[] = [];
@@ -234,13 +249,11 @@ function parseImportNames(clause: string): string[] {
       const name = part.trim().split(/\s+as\s+/)[0].replace(/^type\s+/, '').trim();
       if (name) names.push(name);
     }
-    // Also check for default import before braces
     const beforeBrace = trimmed.slice(0, trimmed.indexOf('{')).replace(',', '').trim();
     if (beforeBrace) names.unshift('default');
     return names;
   }
 
-  // Default import only
   if (trimmed && !trimmed.startsWith('{')) return ['default'];
 
   return [];

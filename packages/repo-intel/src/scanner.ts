@@ -19,7 +19,18 @@ const ALWAYS_IGNORED_DIRS = new Set([
   '.cache',
 ]);
 
-/** File extensions considered binary */
+/** File extensions considered binary.
+ *
+ * Binary files are intentionally excluded from content hashing.
+ * This means modifications to binary files will NOT be detected by
+ * incremental indexing. This is acceptable because:
+ * 1. Binary files are not analyzed for symbols or imports.
+ * 2. Binary changes don't affect the dependency graph.
+ * 3. Hashing large binaries would significantly slow scanning.
+ *
+ * If binary change detection becomes needed (e.g., for asset tracking),
+ * enable hashing for binaries in a future version.
+ */
 const BINARY_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.svg',
   '.woff', '.woff2', '.ttf', '.eot',
@@ -181,7 +192,7 @@ export async function scanRepository(config: ScannerConfig): Promise<FileEntry[]
     const gitignoreContent = await readFile(join(config.rootDir, '.gitignore'), 'utf-8');
     isGitignored = parseGitignore(gitignoreContent);
   } catch {
-    // No .gitignore or unreadable — ignore nothing
+    // TODO: Use Logger service to distinguish "no .gitignore" from "read error"
   }
 
   // Build extra ignore checker
@@ -228,6 +239,7 @@ export async function scanRepository(config: ScannerConfig): Promise<FileEntry[]
             const content = await readFile(fullPath);
             hash = hashContent(content);
           } catch {
+            // TODO: Use Logger service to report unreadable files
             continue; // Skip unreadable files
           }
         }
