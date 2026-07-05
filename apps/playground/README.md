@@ -1,6 +1,6 @@
 # @ai-fable/playground
 
-Interactive playground for testing the AI Browser Agent.
+Interactive playground for testing AI Fable.
 
 ## Scripts
 

@@ -1,6 +1,6 @@
 # @ai-fable/core
 
-Shared interfaces, errors, events, constants, and common types for the AI Browser Agent.
+Shared interfaces, errors, events, constants, and common types for AI Fable.
 
 ## Scripts
 

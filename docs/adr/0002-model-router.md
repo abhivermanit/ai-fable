@@ -37,3 +37,7 @@ The router:
 - All LLM calls go through the router. There is no "direct" SDK usage elsewhere.
 - Adding a new provider means implementing the router's interface for that provider.
 - The router adds a thin abstraction layer. This is acceptable given the multi-provider requirement.
+
+## Follow-up
+
+No further action required. Provider implementations will be added incrementally as Model Gateway (Milestone 8) is built.

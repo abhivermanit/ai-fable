@@ -73,7 +73,7 @@ External Models
 
 Owns planning, execution, retries, state machine, and coordination.
 
-> Concurrent task execution and shared-state locking are deferred to [ADR-0004](./adr/ADR-0004-concurrency-and-locking.md).
+> Concurrent task execution and shared-state locking are deferred to [ADR-0004](./adr/0004-concurrent-task-execution.md).
 
 ### Agents
 
@@ -88,14 +88,14 @@ documentation, embeddings, and retrieval.
 
 Provides shell, browser, git, filesystem, Docker, tests, and MCP tools.
 
-> Failure handling and rollback behavior (retry vs. git-state rollback vs. surfacing to Verification) are deferred to [ADR-0005](./adr/ADR-0005-failure-handling-and-rollback.md).
+> Failure handling and rollback behavior (retry vs. git-state rollback vs. surfacing to Verification) are deferred to [ADR-0005](./adr/0005-execution-failure-rollback.md).
 
 ### Verification Layer
 
 Runs linting, type checking, tests, architecture review, security
 review, LLM review, and confidence scoring.
 
-> Long-term storage and use of confidence scores is owned by the Memory Layer; aggregation and analytics are deferred to [ADR-0006](./adr/ADR-0006-confidence-score-storage.md).
+> Long-term storage and use of confidence scores is owned by the Memory Layer; aggregation and analytics are deferred to [ADR-0006](./adr/0006-confidence-score-analytics.md).
 
 ### Memory Layer
 
@@ -139,6 +139,6 @@ The workflow is not.
 ## Related Documents
 
 - [Roadmap](./roadmap.md)
-- [ADR-0004: Concurrency and Locking](./adr/ADR-0004-concurrency-and-locking.md)
-- [ADR-0005: Failure Handling and Rollback](./adr/ADR-0005-failure-handling-and-rollback.md)
-- [ADR-0006: Confidence Score Storage](./adr/ADR-0006-confidence-score-storage.md)
+- [ADR-0004: Concurrent Task Execution](./adr/0004-concurrent-task-execution.md)
+- [ADR-0005: Execution Failure Rollback](./adr/0005-execution-failure-rollback.md)
+- [ADR-0006: Confidence Score Analytics](./adr/0006-confidence-score-analytics.md)

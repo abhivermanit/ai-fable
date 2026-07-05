@@ -2,7 +2,7 @@
   "name": "ai-fable",
   "version": "0.0.0",
   "private": true,
-  "description": "AI Browser Agent Monorepo",
+  "description": "Software engineering control plane — monorepo",
   "type": "module",
   "scripts": {
     "build": "turbo run build",

@@ -1,6 +1,6 @@
 # @ai-fable/models
 
-LLM model integrations for the AI Browser Agent.
+LLM model integrations for AI Fable.
 
 ## Scripts
 

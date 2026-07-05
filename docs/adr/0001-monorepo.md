@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-We are building an AI browser agent that consists of multiple interconnected components: model integrations, browser automation, prompt management, memory, tooling, and a review agent. These components share types, utilities, and configuration.
+We are building a software engineering control plane that consists of multiple interconnected components: model integrations, browser automation, prompt management, memory, tooling, and a review agent. These components share types, utilities, and configuration.
 
 We needed to decide between:
 
@@ -39,3 +39,7 @@ docs/       — Documentation
 - All contributors work in the same repo. This can slow `git` operations as the repo grows.
 - Package versioning is simplified (all packages share version `0.0.0` while private).
 - Adding a new package requires creating the standard file set (package.json, tsconfig.json, src/index.ts).
+
+## Follow-up
+
+No further action required. This decision is foundational and unlikely to change unless the project scales beyond monorepo feasibility.

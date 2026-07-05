@@ -1,6 +1,6 @@
 # @ai-fable/reviewer
 
-Code review agent for the AI Browser Agent.
+Code review agent for AI Fable.
 
 ## Scripts
 
