@@ -1,0 +1,1080 @@
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..6a5d1fe
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,22 @@
++# LLM Provider Keys
++OPENAI_API_KEY=
++ANTHROPIC_API_KEY=
++GOOGLE_API_KEY=
++NVIDIA_API_KEY=
++KIMI_API_KEY=
++DEEPSEEK_API_KEY=
++
++# Model Router
++MODEL_PROVIDER=
++MODEL_NAME=
++
++# Browser Configuration
++BROWSER_HEADLESS=true
++BROWSER_TIMEOUT=30000
++
++# API Server
++API_PORT=3000
++API_HOST=0.0.0.0
++
++# Logging
++LOG_LEVEL=info
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..c1a26b8
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,33 @@
++# Dependencies
++node_modules/
++
++# Build output
++dist/
++build/
++.turbo/
++
++# Environment
++.env
++.env.local
++.env.*.local
++
++# IDE
++.vscode/
++.idea/
++*.swp
++*.swo
++
++# OS
++.DS_Store
++Thumbs.db
++
++# Logs
++*.log
++logs/
++
++# Coverage
++coverage/
++
++# Temp
++tmp/
++.tmp/
+diff --git a/.prettierrc b/.prettierrc
+new file mode 100644
+index 0000000..f800d4e
+--- /dev/null
++++ b/.prettierrc
+@@ -0,0 +1,9 @@
++{
++  "semi": true,
++  "singleQuote": true,
++  "trailingComma": "all",
++  "printWidth": 100,
++  "tabWidth": 2,
++  "arrowParens": "always",
++  "endOfLine": "lf"
++}
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..5aea8dd
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,54 @@
++# AI Fable
++
++AI Browser Agent Monorepo.
++
++## Structure
++
++```
++apps/
++  api/          — Backend API server
++  playground/   — Interactive playground for testing agents
++
++packages/
++  agents/       — Agent orchestration logic
++  browser/      — Browser automation primitives
++  memory/       — Memory and state management
++  models/       — LLM model integrations
++  prompts/      — Prompt templates and management
++  tools/        — Tool definitions for agents
++  utils/        — Shared utilities
++
++docs/           — Documentation
++```
++
++## Prerequisites
++
++- Node.js >= 20
++- pnpm >= 9
++
++## Getting Started
++
++```bash
++# Install dependencies
++pnpm install
++
++# Build all packages
++pnpm build
++
++# Run development servers
++pnpm dev
++
++# Lint
++pnpm lint
++
++# Format
++pnpm format
++```
++
++## Configuration
++
++Copy `.env.example` to `.env` and fill in the required values.
++
++## License
++
++Private
+diff --git a/apps/api/README.md b/apps/api/README.md
+new file mode 100644
+index 0000000..9dd1ce3
+--- /dev/null
++++ b/apps/api/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/api
++
++Backend API server for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/apps/api/package.json b/apps/api/package.json
+new file mode 100644
+index 0000000..433ebca
+--- /dev/null
++++ b/apps/api/package.json
+@@ -0,0 +1,20 @@
++{
++  "name": "@ai-fable/api",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Backend API server for AI Browser Agent",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "dependencies": {},
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/apps/api/src/index.ts b/apps/api/src/index.ts
+new file mode 100644
+index 0000000..f6295a6
+--- /dev/null
++++ b/apps/api/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/api entry point
++export {};
+diff --git a/apps/api/tsconfig.json b/apps/api/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/apps/api/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/apps/playground/README.md b/apps/playground/README.md
+new file mode 100644
+index 0000000..bcdd1aa
+--- /dev/null
++++ b/apps/playground/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/playground
++
++Interactive playground for testing the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/apps/playground/package.json b/apps/playground/package.json
+new file mode 100644
+index 0000000..6dc97f7
+--- /dev/null
++++ b/apps/playground/package.json
+@@ -0,0 +1,20 @@
++{
++  "name": "@ai-fable/playground",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Interactive playground for testing AI Browser Agent",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "dependencies": {},
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/apps/playground/src/index.ts b/apps/playground/src/index.ts
+new file mode 100644
+index 0000000..3399981
+--- /dev/null
++++ b/apps/playground/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/playground entry point
++export {};
+diff --git a/apps/playground/tsconfig.json b/apps/playground/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/apps/playground/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/docs/README.md b/docs/README.md
+new file mode 100644
+index 0000000..53c6a87
+--- /dev/null
++++ b/docs/README.md
+@@ -0,0 +1,7 @@
++# Documentation
++
++Project documentation for AI Fable.
++
++## Contents
++
++This directory contains architectural decisions, guides, and reference material for the AI Browser Agent monorepo.
+diff --git a/eslint.config.js b/eslint.config.js
+new file mode 100644
+index 0000000..1bfa32c
+--- /dev/null
++++ b/eslint.config.js
+@@ -0,0 +1,21 @@
++import eslint from '@eslint/js';
++import tseslint from 'typescript-eslint';
++
++export default tseslint.config(
++  eslint.configs.recommended,
++  ...tseslint.configs.recommended,
++  {
++    languageOptions: {
++      ecmaVersion: 'latest',
++      sourceType: 'module',
++    },
++    rules: {
++      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
++      '@typescript-eslint/no-explicit-any': 'warn',
++      '@typescript-eslint/explicit-function-return-type': 'off',
++    },
++  },
++  {
++    ignores: ['**/dist/', '**/node_modules/', '**/coverage/'],
++  },
++);
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000..faedd80
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,29 @@
++{
++  "name": "ai-fable",
++  "version": "0.0.0",
++  "private": true,
++  "description": "AI Browser Agent Monorepo",
++  "type": "module",
++  "scripts": {
++    "build": "turbo run build",
++    "dev": "turbo run dev",
++    "lint": "turbo run lint",
++    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
++    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
++    "typecheck": "turbo run typecheck",
++    "clean": "turbo run clean && rm -rf node_modules",
++    "review": "pnpm --filter @ai-fable/reviewer review"
++  },
++  "devDependencies": {
++    "@eslint/js": "^9.0.0",
++    "eslint": "^9.0.0",
++    "prettier": "^3.2.0",
++    "turbo": "^2.0.0",
++    "typescript": "^5.4.0",
++    "typescript-eslint": "^8.0.0"
++  },
++  "packageManager": "pnpm@9.1.0",
++  "engines": {
++    "node": ">=20.0.0"
++  }
++}
+diff --git a/packages/agents/README.md b/packages/agents/README.md
+new file mode 100644
+index 0000000..a7bc0ff
+--- /dev/null
++++ b/packages/agents/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/agents
++
++Agent orchestration logic for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/agents/package.json b/packages/agents/package.json
+new file mode 100644
+index 0000000..e22960a
+--- /dev/null
++++ b/packages/agents/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/agents",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Agent orchestration logic",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/agents/src/index.ts b/packages/agents/src/index.ts
+new file mode 100644
+index 0000000..342030c
+--- /dev/null
++++ b/packages/agents/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/agents — Agent orchestration logic
++export {};
+diff --git a/packages/agents/tsconfig.json b/packages/agents/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/agents/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/packages/browser/README.md b/packages/browser/README.md
+new file mode 100644
+index 0000000..420c166
+--- /dev/null
++++ b/packages/browser/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/browser
++
++Browser automation primitives for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/browser/package.json b/packages/browser/package.json
+new file mode 100644
+index 0000000..8ee4c0c
+--- /dev/null
++++ b/packages/browser/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/browser",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Browser automation primitives",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/browser/src/index.ts b/packages/browser/src/index.ts
+new file mode 100644
+index 0000000..aefdd8a
+--- /dev/null
++++ b/packages/browser/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/browser — Browser automation primitives
++export {};
+diff --git a/packages/browser/tsconfig.json b/packages/browser/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/browser/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/packages/core/README.md b/packages/core/README.md
+new file mode 100644
+index 0000000..3f173b1
+--- /dev/null
++++ b/packages/core/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/core
++
++Shared interfaces, errors, events, constants, and common types for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/core/package.json b/packages/core/package.json
+new file mode 100644
+index 0000000..fc6a8df
+--- /dev/null
++++ b/packages/core/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/core",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Shared interfaces, errors, events, constants, and common types",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/core/src/index.ts b/packages/core/src/index.ts
+new file mode 100644
+index 0000000..9c49e68
+--- /dev/null
++++ b/packages/core/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/core — Shared interfaces, errors, events, constants, and common types
++export {};
+diff --git a/packages/core/tsconfig.json b/packages/core/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/core/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/packages/memory/README.md b/packages/memory/README.md
+new file mode 100644
+index 0000000..03aa18a
+--- /dev/null
++++ b/packages/memory/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/memory
++
++Memory and state management for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/memory/package.json b/packages/memory/package.json
+new file mode 100644
+index 0000000..11c17a0
+--- /dev/null
++++ b/packages/memory/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/memory",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Memory and state management",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/memory/src/index.ts b/packages/memory/src/index.ts
+new file mode 100644
+index 0000000..1893668
+--- /dev/null
++++ b/packages/memory/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/memory — Memory and state management
++export {};
+diff --git a/packages/memory/tsconfig.json b/packages/memory/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/memory/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/packages/models/README.md b/packages/models/README.md
+new file mode 100644
+index 0000000..eee50e1
+--- /dev/null
++++ b/packages/models/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/models
++
++LLM model integrations for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/models/package.json b/packages/models/package.json
+new file mode 100644
+index 0000000..cebc846
+--- /dev/null
++++ b/packages/models/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/models",
++  "version": "0.0.0",
++  "private": true,
++  "description": "LLM model integrations",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/models/src/index.ts b/packages/models/src/index.ts
+new file mode 100644
+index 0000000..0ccb8cd
+--- /dev/null
++++ b/packages/models/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/models — LLM model integrations
++export {};
+diff --git a/packages/models/tsconfig.json b/packages/models/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/models/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/packages/prompts/README.md b/packages/prompts/README.md
+new file mode 100644
+index 0000000..29ddc95
+--- /dev/null
++++ b/packages/prompts/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/prompts
++
++Prompt templates and management for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/prompts/package.json b/packages/prompts/package.json
+new file mode 100644
+index 0000000..a542376
+--- /dev/null
++++ b/packages/prompts/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/prompts",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Prompt templates and management",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/prompts/src/index.ts b/packages/prompts/src/index.ts
+new file mode 100644
+index 0000000..8c4a3bf
+--- /dev/null
++++ b/packages/prompts/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/prompts — Prompt templates and management
++export {};
+diff --git a/packages/prompts/tsconfig.json b/packages/prompts/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/prompts/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/packages/reviewer/README.md b/packages/reviewer/README.md
+new file mode 100644
+index 0000000..c079815
+--- /dev/null
++++ b/packages/reviewer/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/reviewer
++
++Code review agent for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/reviewer/package.json b/packages/reviewer/package.json
+new file mode 100644
+index 0000000..1a3bd54
+--- /dev/null
++++ b/packages/reviewer/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/reviewer",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Code review agent",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/reviewer/src/cli/.gitkeep b/packages/reviewer/src/cli/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/packages/reviewer/src/git/.gitkeep b/packages/reviewer/src/git/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/packages/reviewer/src/index.ts b/packages/reviewer/src/index.ts
+new file mode 100644
+index 0000000..3b896e2
+--- /dev/null
++++ b/packages/reviewer/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/reviewer — Code review agent
++export {};
+diff --git a/packages/reviewer/src/llm/.gitkeep b/packages/reviewer/src/llm/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/packages/reviewer/src/prompt/.gitkeep b/packages/reviewer/src/prompt/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/packages/reviewer/src/report/.gitkeep b/packages/reviewer/src/report/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/packages/reviewer/src/types/.gitkeep b/packages/reviewer/src/types/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/packages/reviewer/src/utils/.gitkeep b/packages/reviewer/src/utils/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/packages/reviewer/tsconfig.json b/packages/reviewer/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/reviewer/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/packages/tools/README.md b/packages/tools/README.md
+new file mode 100644
+index 0000000..ea4695d
+--- /dev/null
++++ b/packages/tools/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/tools
++
++Tool definitions for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/tools/package.json b/packages/tools/package.json
+new file mode 100644
+index 0000000..cbd044e
+--- /dev/null
++++ b/packages/tools/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/tools",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Tool definitions for agents",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/tools/src/index.ts b/packages/tools/src/index.ts
+new file mode 100644
+index 0000000..c4c6d32
+--- /dev/null
++++ b/packages/tools/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/tools — Tool definitions for agents
++export {};
+diff --git a/packages/tools/tsconfig.json b/packages/tools/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/tools/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/packages/utils/README.md b/packages/utils/README.md
+new file mode 100644
+index 0000000..e69bc92
+--- /dev/null
++++ b/packages/utils/README.md
+@@ -0,0 +1,13 @@
++# @ai-fable/utils
++
++Shared utilities for the AI Browser Agent.
++
++## Scripts
++
++```bash
++pnpm build      # Compile TypeScript
++pnpm dev        # Watch mode
++pnpm lint       # Run ESLint
++pnpm typecheck  # Type check without emitting
++pnpm clean      # Remove build artifacts
++```
+diff --git a/packages/utils/package.json b/packages/utils/package.json
+new file mode 100644
+index 0000000..73c3377
+--- /dev/null
++++ b/packages/utils/package.json
+@@ -0,0 +1,25 @@
++{
++  "name": "@ai-fable/utils",
++  "version": "0.0.0",
++  "private": true,
++  "description": "Shared utilities",
++  "type": "module",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.js"
++    }
++  },
++  "scripts": {
++    "build": "tsc",
++    "dev": "tsc --watch",
++    "lint": "eslint src/",
++    "typecheck": "tsc --noEmit",
++    "clean": "rm -rf dist"
++  },
++  "devDependencies": {
++    "typescript": "^5.4.0"
++  }
++}
+diff --git a/packages/utils/src/index.ts b/packages/utils/src/index.ts
+new file mode 100644
+index 0000000..3ae3fe8
+--- /dev/null
++++ b/packages/utils/src/index.ts
+@@ -0,0 +1,2 @@
++// @ai-fable/utils — Shared utilities
++export {};
+diff --git a/packages/utils/tsconfig.json b/packages/utils/tsconfig.json
+new file mode 100644
+index 0000000..a086b14
+--- /dev/null
++++ b/packages/utils/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src"]
++}
+diff --git a/pnpm-workspace.yaml b/pnpm-workspace.yaml
+new file mode 100644
+index 0000000..3ff5faa
+--- /dev/null
++++ b/pnpm-workspace.yaml
+@@ -0,0 +1,3 @@
++packages:
++  - "apps/*"
++  - "packages/*"
+diff --git a/tsconfig.json b/tsconfig.json
+new file mode 100644
+index 0000000..81918d8
+--- /dev/null
++++ b/tsconfig.json
+@@ -0,0 +1,17 @@
++{
++  "compilerOptions": {
++    "target": "ES2022",
++    "module": "NodeNext",
++    "moduleResolution": "NodeNext",
++    "lib": ["ES2022"],
++    "strict": true,
++    "esModuleInterop": true,
++    "skipLibCheck": true,
++    "forceConsistentCasingInFileNames": true,
++    "resolveJsonModule": true,
++    "isolatedModules": true,
++    "declaration": true,
++    "declarationMap": true,
++    "sourceMap": true
++  }
++}
+diff --git a/turbo.json b/turbo.json
+new file mode 100644
+index 0000000..2dadca5
+--- /dev/null
++++ b/turbo.json
+@@ -0,0 +1,22 @@
++{
++  "globalDependencies": ["**/.env.*local"],
++  "tasks": {
++    "build": {
++      "dependsOn": ["^build"],
++      "outputs": ["dist/**"]
++    },
++    "dev": {
++      "cache": false,
++      "persistent": true
++    },
++    "lint": {
++      "dependsOn": ["^build"]
++    },
++    "typecheck": {
++      "dependsOn": []
++    },
++    "clean": {
++      "cache": false
++    }
++  }
++}
