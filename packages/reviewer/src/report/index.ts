@@ -1,1 +1,2 @@
-export { generateMarkdownReport } from './markdown.js';
+export { generateMarkdown, computeStats } from './markdown.js';
+export { generateJson } from './json.js';

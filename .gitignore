@@ -28,6 +28,9 @@ logs/
 # Coverage
 coverage/
 
+# Reviews (generated output)
+reviews/
+
 # Temp
 tmp/
 .tmp/

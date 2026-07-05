@@ -1,19 +1,31 @@
 import { exec } from './commands.js';
 import type { DiffFile, DiffHunk } from '@ai-fable/core';
+import type { DiffMode } from '../types/index.js';
 
 /**
- * Read the staged diff from git.
- * Falls back to unstaged diff if nothing is staged.
+ * Read the staged diff.
  */
-export function readGitDiff(cwd?: string): string {
-  // Try staged diff first
-  const staged = exec('diff --cached', cwd);
-  if (staged.length > 0) {
-    return staged;
-  }
+export function getStagedDiff(cwd?: string): string {
+  return exec('diff --cached', cwd);
+}
 
-  // Fall back to unstaged diff
-  return exec('diff', cwd);
+/**
+ * Read the working tree diff (staged + unstaged).
+ */
+export function getWorkingTreeDiff(cwd?: string): string {
+  return exec('diff HEAD', cwd);
+}
+
+/**
+ * Read diff based on mode.
+ * - 'staged': only staged changes (default)
+ * - 'all': all changes (staged + unstaged)
+ */
+export function getDiff(mode: DiffMode = 'staged', cwd?: string): string {
+  if (mode === 'all') {
+    return getWorkingTreeDiff(cwd);
+  }
+  return getStagedDiff(cwd);
 }
 
 /**

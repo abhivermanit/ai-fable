@@ -8,6 +8,6 @@ export {
   getUntrackedFiles,
   hasMergeConflicts,
 } from './repository.js';
-export { readGitDiff, parseDiff } from './diff-reader.js';
-export { filterBinaries } from './binary-filter.js';
+export { getDiff, getStagedDiff, getWorkingTreeDiff, parseDiff } from './diff-reader.js';
+
 export type { GitStatus } from './types.js';
