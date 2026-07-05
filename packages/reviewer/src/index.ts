@@ -1,2 +1,2 @@
-// @ai-fable/reviewer — Code review agent
-export {};
+export { readGitDiff, parseDiff, filterBinaries } from './git/index.js';
+export { generateMarkdownReport } from './report/index.js';
