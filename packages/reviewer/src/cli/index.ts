@@ -1,30 +1,49 @@
 #!/usr/bin/env node
 
-import { readGitDiff, parseDiff, filterBinaries } from '../git/index.js';
-import { generateMarkdownReport } from '../report/index.js';
+import { isGitRepository, getRepositoryRoot, getGitStatus } from '../git/index.js';
+
+function formatFileList(files: string[]): string {
+  if (files.length === 0) return '  (none)';
+  return files.map((f) => `  - ${f}`).join('\n');
+}
 
 function main(): void {
+  console.log('AI Fable Reviewer');
+  console.log('');
+
   const cwd = process.cwd();
 
-  // 1. Read git diff
-  const rawDiff = readGitDiff(cwd);
-
-  if (!rawDiff) {
-    console.log('No changes detected. Stage files or make changes to review.');
-    process.exit(0);
+  if (!isGitRepository(cwd)) {
+    console.error('❌ Not a Git repository.');
+    process.exit(1);
   }
 
-  // 2. Parse diff
-  const files = parseDiff(rawDiff);
+  const root = getRepositoryRoot(cwd);
+  const status = getGitStatus(cwd);
 
-  // 3. Filter binaries
-  const { reviewable, skipped } = filterBinaries(files);
-
-  // 4. Generate report
-  const report = generateMarkdownReport(reviewable, skipped);
-
-  // 5. Output
-  console.log(report.markdown);
+  console.log('Repository:');
+  console.log(root);
+  console.log('');
+  console.log('Branch:');
+  console.log(status.branch);
+  console.log('');
+  console.log('Status:');
+  console.log('');
+  console.log('Staged:');
+  console.log(formatFileList(status.staged));
+  console.log('');
+  console.log('Modified:');
+  console.log(formatFileList(status.modified));
+  console.log('');
+  console.log('Untracked:');
+  console.log(formatFileList(status.untracked));
+  console.log('');
+  console.log('Merge Conflicts:');
+  if (status.hasConflicts) {
+    console.log('  ⚠️  Yes — resolve conflicts before reviewing.');
+  } else {
+    console.log('  No');
+  }
 }
 
 main();

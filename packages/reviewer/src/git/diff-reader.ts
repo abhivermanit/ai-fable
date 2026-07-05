@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { exec } from './commands.js';
 import type { DiffFile, DiffHunk } from '@ai-fable/core';
 
 /**
@@ -6,16 +6,14 @@ import type { DiffFile, DiffHunk } from '@ai-fable/core';
  * Falls back to unstaged diff if nothing is staged.
  */
 export function readGitDiff(cwd?: string): string {
-  const options = { cwd: cwd ?? process.cwd(), encoding: 'utf-8' as const };
-
   // Try staged diff first
-  const staged = execSync('git diff --cached', options).trim();
+  const staged = exec('diff --cached', cwd);
   if (staged.length > 0) {
     return staged;
   }
 
   // Fall back to unstaged diff
-  return execSync('git diff', options).trim();
+  return exec('diff', cwd);
 }
 
 /**
