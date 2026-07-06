@@ -1,7 +1,15 @@
 /**
  * Status of a single verifier's result.
+ *
+ * - pass: Verification succeeded
+ * - fail: Verification found issues
+ * - warning: Passed with non-blocking concerns
+ * - skip: Verifier was not run (aborted, or skipped due to prior failure)
+ * - not_applicable: Verifier determined it doesn't apply to this context
+ * - timeout: Verifier exceeded its time limit
+ * - error: Verifier encountered an unexpected internal error
  */
-export type VerifierStatus = 'pass' | 'fail' | 'skip' | 'error';
+export type VerifierStatus = 'pass' | 'fail' | 'warning' | 'skip' | 'not_applicable' | 'timeout' | 'error';
 
 /**
  * A piece of structured evidence produced by a verifier.

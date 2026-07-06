@@ -32,7 +32,7 @@ export function buildResult(
 ): VerifierResult {
   const passed = result.exitCode === 0;
   const status = result.timedOut
-    ? 'error' as const
+    ? 'timeout' as const
     : result.aborted
       ? 'skip' as const
       : passed

@@ -51,11 +51,11 @@ describe('Concrete Verifiers', () => {
       expect(result.evidence.message).toContain('failed');
     });
 
-    it('reports error on timeout', async () => {
+    it('reports timeout status on timeout', async () => {
       const verifier = new BuildVerifier({ command: 'sleep 60', timeoutMs: 50 });
       const result = await verifier.verify(context);
 
-      expect(result.status).toBe('error');
+      expect(result.status).toBe('timeout');
       expect(result.evidence.message).toContain('timed out');
     });
 

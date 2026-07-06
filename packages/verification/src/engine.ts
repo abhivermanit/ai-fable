@@ -162,7 +162,7 @@ export class VerificationEngine {
     const failedAdvisory: string[] = [];
 
     for (const result of results) {
-      if (result.status === 'pass' || result.status === 'skip') continue;
+      if (result.status === 'pass' || result.status === 'skip' || result.status === 'warning' || result.status === 'not_applicable') continue;
 
       const rule = this.policy.rules.find((r) => r.verifier === result.name);
 
