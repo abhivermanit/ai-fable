@@ -1,5 +1,14 @@
 import type { ModelProvider, ModelInfo, RoutingCriteria, ChatRequest } from './types.js';
 import type { ProviderRegistry } from './registry.js';
+import type { HealthTracker } from './health.js';
+
+/**
+ * A candidate (provider + model pair) flowing through the pipeline.
+ */
+export interface RouteCandidate {
+  provider: ModelProvider;
+  model: ModelInfo;
+}
 
 /**
  * Result of a routing decision.
@@ -11,177 +20,228 @@ export interface RoutingDecision {
   model: ModelInfo;
   /** Reason for the selection */
   reason: string;
+  /** Filters that were applied */
+  filtersApplied: string[];
 }
+
+/**
+ * A routing filter — one stage in the pipeline.
+ *
+ * Each filter receives candidates and returns a subset.
+ * Adding new routing logic is as simple as adding a new filter.
+ */
+export interface RouteFilter {
+  /** Filter name (for tracing/debugging) */
+  readonly name: string;
+  /** Apply the filter, returning candidates that pass. */
+  apply(candidates: RouteCandidate[], request: ChatRequest, criteria?: RoutingCriteria): RouteCandidate[];
+}
+
+// --- Built-in Filters ---
+
+/**
+ * Removes unhealthy providers.
+ */
+export class HealthFilter implements RouteFilter {
+  readonly name = 'health';
+  private readonly healthTracker: HealthTracker;
+
+  constructor(healthTracker: HealthTracker) {
+    this.healthTracker = healthTracker;
+  }
+
+  apply(candidates: RouteCandidate[]): RouteCandidate[] {
+    return candidates.filter((c) => this.healthTracker.isHealthy(c.provider.name));
+  }
+}
+
+/**
+ * Filters by required capabilities.
+ */
+export class CapabilityFilter implements RouteFilter {
+  readonly name = 'capability';
+
+  apply(candidates: RouteCandidate[], _request: ChatRequest, criteria?: RoutingCriteria): RouteCandidate[] {
+    if (!criteria?.capabilities || criteria.capabilities.length === 0) return candidates;
+
+    return candidates.filter((c) =>
+      criteria.capabilities!.every((cap) => c.model.capabilities.includes(cap)),
+    );
+  }
+}
+
+/**
+ * Filters by minimum context window.
+ */
+export class ContextWindowFilter implements RouteFilter {
+  readonly name = 'context-window';
+
+  apply(candidates: RouteCandidate[], _request: ChatRequest, criteria?: RoutingCriteria): RouteCandidate[] {
+    if (!criteria?.minContextWindow) return candidates;
+    return candidates.filter((c) => c.model.contextWindow >= criteria.minContextWindow!);
+  }
+}
+
+/**
+ * Filters by maximum cost.
+ */
+export class CostFilter implements RouteFilter {
+  readonly name = 'cost';
+
+  apply(candidates: RouteCandidate[], _request: ChatRequest, criteria?: RoutingCriteria): RouteCandidate[] {
+    if (!criteria?.maxCostPer1kTokens) return candidates;
+    return candidates.filter((c) =>
+      !c.model.costPer1kPromptTokens || c.model.costPer1kPromptTokens <= criteria.maxCostPer1kTokens!,
+    );
+  }
+}
+
+/**
+ * Promotes preferred provider/model to the front.
+ */
+export class PreferenceFilter implements RouteFilter {
+  readonly name = 'preference';
+
+  apply(candidates: RouteCandidate[], request: ChatRequest, criteria?: RoutingCriteria): RouteCandidate[] {
+    if (candidates.length <= 1) return candidates;
+
+    // Explicit model in request takes highest priority
+    if (request.model) {
+      const exact = candidates.filter((c) => c.model.id === request.model);
+      if (exact.length > 0) return exact;
+    }
+
+    // Preferred model from criteria
+    if (criteria?.preferredModel) {
+      const preferred = candidates.filter((c) => c.model.id === criteria.preferredModel);
+      if (preferred.length > 0) return preferred;
+    }
+
+    // Preferred provider from criteria
+    if (criteria?.preferredProvider) {
+      const preferred = candidates.filter((c) => c.provider.name === criteria.preferredProvider);
+      if (preferred.length > 0) return preferred;
+    }
+
+    return candidates;
+  }
+}
+
+/**
+ * Sorts remaining candidates by cost (cheapest first), then context window.
+ */
+export class WeightedSelectionFilter implements RouteFilter {
+  readonly name = 'weighted-selection';
+
+  apply(candidates: RouteCandidate[]): RouteCandidate[] {
+    return [...candidates].sort((a, b) => {
+      const costA = a.model.costPer1kPromptTokens ?? Infinity;
+      const costB = b.model.costPer1kPromptTokens ?? Infinity;
+      if (costA !== costB) return costA - costB;
+      return b.model.contextWindow - a.model.contextWindow;
+    });
+  }
+}
+
+// --- Router ---
 
 /**
  * The Router selects the best provider and model for a request.
  *
- * Selection is based on:
- * - Required capabilities
- * - Preferred provider/model (if specified)
- * - Cost constraints
- * - Context window requirements
- * - Provider health
+ * Uses a filter pipeline architecture:
+ *   All candidates → Health → Capability → Context → Cost → Preference → Selection
  *
- * The router does NOT execute requests — it only decides where to send them.
+ * Each filter narrows the candidate set. Adding new routing logic is
+ * as simple as inserting a filter into the pipeline.
+ *
+ * The router never references provider names in its logic —
+ * all decisions are based on capabilities and metadata.
  */
 export class Router {
   private readonly registry: ProviderRegistry;
-  private readonly unhealthyProviders: Set<string> = new Set();
+  private readonly pipeline: RouteFilter[];
+  private readonly healthTracker: HealthTracker;
 
-  constructor(registry: ProviderRegistry) {
+  constructor(registry: ProviderRegistry, healthTracker: HealthTracker, additionalFilters?: RouteFilter[]) {
     this.registry = registry;
+    this.healthTracker = healthTracker;
+
+    // Default pipeline
+    this.pipeline = [
+      new HealthFilter(healthTracker),
+      new CapabilityFilter(),
+      new ContextWindowFilter(),
+      new CostFilter(),
+      new PreferenceFilter(),
+      new WeightedSelectionFilter(),
+      ...(additionalFilters ?? []),
+    ];
   }
 
   /**
    * Select the best provider and model for a request.
    */
   route(request: ChatRequest, criteria?: RoutingCriteria): RoutingDecision {
-    // If a specific model is requested, find it directly
-    if (request.model) {
-      const decision = this.findByModel(request.model);
-      if (decision) return decision;
-    }
-
-    // If preferred provider specified, try it first
-    if (criteria?.preferredProvider) {
-      const decision = this.findByProvider(criteria.preferredProvider, criteria);
-      if (decision) return decision;
-    }
-
-    // If preferred model specified, find it
-    if (criteria?.preferredModel) {
-      const decision = this.findByModel(criteria.preferredModel);
-      if (decision) return decision;
-    }
-
-    // General routing: find best match across all providers
-    const candidates = this.findCandidates(criteria);
-    if (candidates.length === 0) {
-      throw new NoProviderError(criteria);
-    }
-
-    // Select best candidate (cheapest that meets requirements)
-    const best = this.selectBest(candidates, criteria);
-    return best;
-  }
-
-  /**
-   * Mark a provider as unhealthy (for circuit breaker / fallback).
-   */
-  markUnhealthy(providerName: string): void {
-    this.unhealthyProviders.add(providerName);
-  }
-
-  /**
-   * Mark a provider as healthy again.
-   */
-  markHealthy(providerName: string): void {
-    this.unhealthyProviders.delete(providerName);
-  }
-
-  /**
-   * Check if a provider is considered healthy.
-   */
-  isHealthy(providerName: string): boolean {
-    return !this.unhealthyProviders.has(providerName);
-  }
-
-  /**
-   * Find a specific model by ID across all providers.
-   */
-  private findByModel(modelId: string): RoutingDecision | undefined {
-    const provider = this.registry.byModel(modelId);
-    if (!provider) return undefined;
-    if (!this.isHealthy(provider.name)) return undefined;
-
-    const model = provider.models().find((m) => m.id === modelId);
-    if (!model) return undefined;
-
-    return { provider, model, reason: `Explicit model selection: ${modelId}` };
-  }
-
-  /**
-   * Find a model from a specific provider matching criteria.
-   */
-  private findByProvider(providerName: string, criteria?: RoutingCriteria): RoutingDecision | undefined {
-    const provider = this.registry.get(providerName);
-    if (!provider) return undefined;
-    if (!this.isHealthy(providerName)) return undefined;
-
-    const models = this.filterModels(provider.models(), criteria);
-    if (models.length === 0) return undefined;
-
-    const best = models[0]; // First match (models should be pre-sorted by provider)
-    return { provider, model: best, reason: `Preferred provider: ${providerName}` };
-  }
-
-  /**
-   * Find all candidate models across all healthy providers.
-   */
-  private findCandidates(criteria?: RoutingCriteria): Array<{ provider: ModelProvider; model: ModelInfo }> {
-    const candidates: Array<{ provider: ModelProvider; model: ModelInfo }> = [];
-
+    // Start with all registered models as candidates
+    let candidates: RouteCandidate[] = [];
     for (const provider of this.registry.all()) {
-      if (!this.isHealthy(provider.name)) continue;
-
-      const models = this.filterModels(provider.models(), criteria);
-      for (const model of models) {
+      for (const model of provider.models()) {
         candidates.push({ provider, model });
       }
     }
 
-    return candidates;
-  }
+    if (candidates.length === 0) {
+      throw new NoProviderError(criteria);
+    }
 
-  /**
-   * Filter models by routing criteria.
-   */
-  private filterModels(models: ModelInfo[], criteria?: RoutingCriteria): ModelInfo[] {
-    if (!criteria) return models;
+    // Run through filter pipeline
+    const filtersApplied: string[] = [];
+    for (const filter of this.pipeline) {
+      const before = candidates.length;
+      candidates = filter.apply(candidates, request, criteria);
+      filtersApplied.push(filter.name);
 
-    return models.filter((m) => {
-      // Check required capabilities
-      if (criteria.capabilities) {
-        for (const cap of criteria.capabilities) {
-          if (!m.capabilities.includes(cap)) return false;
-        }
+      if (candidates.length === 0) {
+        throw new NoProviderError(criteria, filter.name);
       }
+    }
 
-      // Check context window
-      if (criteria.minContextWindow && m.contextWindow < criteria.minContextWindow) {
-        return false;
-      }
-
-      // Check cost
-      if (criteria.maxCostPer1kTokens && m.costPer1kPromptTokens) {
-        if (m.costPer1kPromptTokens > criteria.maxCostPer1kTokens) return false;
-      }
-
-      return true;
-    });
-  }
-
-  /**
-   * Select the best candidate from a list (cheapest, or first if no cost info).
-   */
-  private selectBest(
-    candidates: Array<{ provider: ModelProvider; model: ModelInfo }>,
-    criteria?: RoutingCriteria,
-  ): RoutingDecision {
-    // Sort by cost (cheapest first), then by context window (larger first)
-    const sorted = [...candidates].sort((a, b) => {
-      const costA = a.model.costPer1kPromptTokens ?? Infinity;
-      const costB = b.model.costPer1kPromptTokens ?? Infinity;
-      if (costA !== costB) return costA - costB;
-      return b.model.contextWindow - a.model.contextWindow;
-    });
-
+    // Take the first candidate (pipeline should have sorted them)
+    const selected = candidates[0];
     return {
-      provider: sorted[0].provider,
-      model: sorted[0].model,
-      reason: 'Best match by cost and capability',
+      provider: selected.provider,
+      model: selected.model,
+      reason: `Selected by pipeline (${filtersApplied.join(' → ')})`,
+      filtersApplied,
     };
+  }
+
+  /**
+   * Get the filter pipeline (for inspection/debugging).
+   */
+  getFilters(): RouteFilter[] {
+    return [...this.pipeline];
+  }
+
+  /**
+   * Convenience: mark a provider unhealthy.
+   */
+  markUnhealthy(providerName: string): void {
+    this.healthTracker.markUnhealthy(providerName);
+  }
+
+  /**
+   * Convenience: mark a provider healthy.
+   */
+  markHealthy(providerName: string): void {
+    this.healthTracker.markHealthy(providerName);
+  }
+
+  /**
+   * Convenience: check health.
+   */
+  isHealthy(providerName: string): boolean {
+    return this.healthTracker.isHealthy(providerName);
   }
 }
 
@@ -190,11 +250,14 @@ export class Router {
  */
 export class NoProviderError extends Error {
   public readonly criteria?: RoutingCriteria;
+  public readonly failedAtFilter?: string;
 
-  constructor(criteria?: RoutingCriteria) {
+  constructor(criteria?: RoutingCriteria, failedAtFilter?: string) {
     const caps = criteria?.capabilities?.join(', ') ?? 'any';
-    super(`No healthy provider found matching criteria (capabilities: ${caps})`);
+    const filterMsg = failedAtFilter ? ` (failed at: ${failedAtFilter})` : '';
+    super(`No provider found matching criteria (capabilities: ${caps})${filterMsg}`);
     this.name = 'NoProviderError';
     this.criteria = criteria;
+    this.failedAtFilter = failedAtFilter;
   }
 }

@@ -27,7 +27,19 @@ export { ProviderRegistry } from './registry.js';
 
 // Router
 export { Router, NoProviderError } from './router.js';
-export type { RoutingDecision } from './router.js';
+export type { RoutingDecision, RouteCandidate, RouteFilter } from './router.js';
+export {
+  HealthFilter,
+  CapabilityFilter,
+  ContextWindowFilter,
+  CostFilter,
+  PreferenceFilter,
+  WeightedSelectionFilter,
+} from './router.js';
+
+// Health Tracking
+export { HealthTracker } from './health.js';
+export type { ProviderHealthState, HealthTrackerConfig } from './health.js';
 
 // Reliability
 export { ReliabilityLayer, GatewayError } from './reliability.js';

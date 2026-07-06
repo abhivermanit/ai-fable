@@ -15,6 +15,7 @@ import { ReliabilityLayer, GatewayError } from './reliability.js';
 import type { ReliabilityConfig } from './reliability.js';
 import { TelemetryCollector } from './telemetry.js';
 import type { TelemetryStats } from './telemetry.js';
+import { HealthTracker } from './health.js';
 import type { PromptTemplate } from './prompts.js';
 import { renderTemplate } from './prompts.js';
 import { parseStructuredOutput, type StructuredOutput } from './structured-output.js';
@@ -45,12 +46,14 @@ export class ModelGateway {
   public readonly registry: ProviderRegistry;
   public readonly router: Router;
   public readonly telemetry: TelemetryCollector;
+  public readonly health: HealthTracker;
   private readonly reliability: ReliabilityLayer;
   private readonly defaultCriteria?: RoutingCriteria;
 
   constructor(config?: GatewayConfig) {
     this.registry = new ProviderRegistry();
-    this.router = new Router(this.registry);
+    this.health = new HealthTracker();
+    this.router = new Router(this.registry, this.health);
     this.telemetry = new TelemetryCollector(config?.maxTelemetryRecords);
     this.reliability = new ReliabilityLayer(this.router, config?.reliability);
     this.defaultCriteria = config?.defaultCriteria;
@@ -169,7 +172,7 @@ export class ModelGateway {
   /**
    * Check health of all providers.
    */
-  async health(): Promise<ProviderHealth[]> {
+  async checkHealth(): Promise<ProviderHealth[]> {
     return this.registry.healthCheck();
   }
 

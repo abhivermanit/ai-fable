@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ModelGateway } from './gateway.js';
 import { ProviderRegistry } from './registry.js';
 import { Router, NoProviderError } from './router.js';
+import { HealthTracker } from './health.js';
 import { TelemetryCollector } from './telemetry.js';
 import { renderTemplate, createTemplate, PromptRenderError } from './prompts.js';
 import { parseStructuredOutput, extractJson } from './structured-output.js';
@@ -132,7 +133,7 @@ describe('Router', () => {
   it('routes to explicit model', () => {
     const registry = new ProviderRegistry();
     registry.register(makeProvider('openai'));
-    const router = new Router(registry);
+    const router = new Router(registry, new HealthTracker());
 
     const decision = router.route({ messages: [], model: 'openai-model' });
     expect(decision.provider.name).toBe('openai');
@@ -143,7 +144,7 @@ describe('Router', () => {
     const registry = new ProviderRegistry();
     registry.register(makeProvider('openai'));
     registry.register(makeProvider('claude'));
-    const router = new Router(registry);
+    const router = new Router(registry, new HealthTracker());
 
     const decision = router.route({ messages: [] }, { preferredProvider: 'claude' });
     expect(decision.provider.name).toBe('claude');
@@ -159,7 +160,7 @@ describe('Router', () => {
       ...defaultModel('cheap'),
       costPer1kPromptTokens: 0.001,
     }]));
-    const router = new Router(registry);
+    const router = new Router(registry, new HealthTracker());
 
     const decision = router.route({ messages: [] });
     expect(decision.provider.name).toBe('cheap');
@@ -167,7 +168,7 @@ describe('Router', () => {
 
   it('throws NoProviderError when no match', () => {
     const registry = new ProviderRegistry();
-    const router = new Router(registry);
+    const router = new Router(registry, new HealthTracker());
 
     expect(() => router.route({ messages: [] })).toThrow(NoProviderError);
   });
@@ -176,9 +177,10 @@ describe('Router', () => {
     const registry = new ProviderRegistry();
     registry.register(makeProvider('primary'));
     registry.register(makeProvider('backup'));
-    const router = new Router(registry);
+    const health = new HealthTracker();
+    const router = new Router(registry, health);
 
-    router.markUnhealthy('primary');
+    health.markUnhealthy('primary');
     const decision = router.route({ messages: [] });
     expect(decision.provider.name).toBe('backup');
   });
@@ -193,10 +195,21 @@ describe('Router', () => {
       ...defaultModel('has-vision'),
       capabilities: ['chat', 'vision'],
     }]));
-    const router = new Router(registry);
+    const router = new Router(registry, new HealthTracker());
 
     const decision = router.route({ messages: [] }, { capabilities: ['vision'] });
     expect(decision.provider.name).toBe('has-vision');
+  });
+
+  it('includes filter trace in decision', () => {
+    const registry = new ProviderRegistry();
+    registry.register(makeProvider('test'));
+    const router = new Router(registry, new HealthTracker());
+
+    const decision = router.route({ messages: [] });
+    expect(decision.filtersApplied).toContain('health');
+    expect(decision.filtersApplied).toContain('capability');
+    expect(decision.filtersApplied).toContain('weighted-selection');
   });
 });
 
@@ -232,9 +245,9 @@ describe('ModelGateway', () => {
   });
 
   it('checks provider health', async () => {
-    const health = await gateway.health();
-    expect(health).toHaveLength(2);
-    expect(health.every((h) => h.healthy)).toBe(true);
+    const healthResults = await gateway.checkHealth();
+    expect(healthResults).toHaveLength(2);
+    expect(healthResults.every((h) => h.healthy)).toBe(true);
   });
 
   it('chatWithTemplate renders and sends', async () => {
