@@ -5,6 +5,8 @@ import type {
   PolicyConfig,
   PolicyCondition,
   PolicyContext,
+  PolicySnapshot,
+  PolicyScope,
 } from './types.js';
 
 /**
@@ -12,16 +14,22 @@ import type {
  *
  * Evaluates questions against configured rules and returns decisions.
  * Rules are evaluated in priority order (highest first).
- * The first matching rule wins.
+ * The first matching rule wins — unless it defers, in which case
+ * evaluation continues to the next matching rule.
  *
  * The engine is stateless — all state comes from the question's context.
  * The Orchestrator asks; the Policy Engine answers.
+ *
+ * Decisions include full traceability (matched rule, scope, version,
+ * timestamp) for audit trails and replay.
  */
 export class PolicyEngine {
   private rules: PolicyRule[];
   private defaultDecision: PolicyConfig['defaultDecision'];
+  private readonly version: string;
 
   constructor(config: PolicyConfig) {
+    this.version = config.version;
     // Sort rules by priority (highest first)
     this.rules = [...config.rules]
       .filter((r) => r.enabled)
@@ -30,21 +38,30 @@ export class PolicyEngine {
   }
 
   /**
-   * Evaluate a policy question and return a decision.
+   * Evaluate a policy question and return a traceable decision.
    */
   evaluate(question: PolicyQuestion): PolicyDecision {
+    const now = new Date().toISOString();
+
     for (const rule of this.rules) {
       // Check if rule applies to this question type
       if (!rule.appliesTo.includes(question.type)) continue;
 
       // Check if condition matches
       if (this.matchesCondition(rule.condition, question.context)) {
+        // If the rule defers, skip it and continue evaluation
+        if (rule.decision.defer) continue;
+
         return {
           allowed: rule.decision.allowed,
           reason: rule.decision.reason,
           rule: rule.id,
+          ruleDescription: rule.description,
           value: rule.decision.value,
           overridable: rule.decision.overridable,
+          scope: rule.scope ?? 'global',
+          policyVersion: this.version,
+          evaluatedAt: now,
         };
       }
     }
@@ -55,6 +72,9 @@ export class PolicyEngine {
       reason: this.defaultDecision.reason,
       value: this.defaultDecision.value,
       overridable: this.defaultDecision.overridable,
+      scope: 'global',
+      policyVersion: this.version,
+      evaluatedAt: now,
     };
   }
 
@@ -70,6 +90,28 @@ export class PolicyEngine {
    */
   getValue<T>(question: PolicyQuestion): T | undefined {
     return this.evaluate(question).value as T | undefined;
+  }
+
+  /**
+   * Capture an immutable snapshot of the current policy.
+   *
+   * Used when a task begins execution so its decisions can be
+   * replayed or audited against the exact policy version.
+   */
+  snapshot(): PolicySnapshot {
+    return {
+      version: this.version,
+      capturedAt: new Date().toISOString(),
+      rules: [...this.rules],
+      defaultDecision: { ...this.defaultDecision },
+    };
+  }
+
+  /**
+   * Get the policy version.
+   */
+  getVersion(): string {
+    return this.version;
   }
 
   /**

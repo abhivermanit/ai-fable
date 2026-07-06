@@ -13,6 +13,7 @@ import type { PolicyConfig, PolicyRule } from './types.js';
  */
 export function defaultPolicyConfig(): PolicyConfig {
   return {
+    version: '1.0.0-default',
     rules: [
       ...protectedFileRules(),
       ...branchProtectionRules(),
@@ -36,6 +37,7 @@ export function defaultPolicyConfig(): PolicyConfig {
  */
 export function strictPolicyConfig(): PolicyConfig {
   return {
+    version: '1.0.0-strict',
     rules: [
       ...protectedFileRules(),
       ...branchProtectionRules(),

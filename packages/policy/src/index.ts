@@ -8,6 +8,8 @@ export type {
   PolicyCondition,
   PolicyRuleDecision,
   PolicyConfig,
+  PolicyScope,
+  PolicySnapshot,
 } from './types.js';
 
 // Engine
