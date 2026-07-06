@@ -21,7 +21,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@ai-fable/core": "workspace:*"
+    "@ai-fable/core": "workspace:*",
+    "playwright": "^1.61.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
