@@ -11,7 +11,8 @@ export type {
 } from './types.js';
 
 // Shell
-export { exec, execOrThrow, ShellError } from './shell.js';
+export { exec, execOrThrow, ShellError, PosixShellAdapter, setShellAdapter, getShellAdapter } from './shell.js';
+export type { ShellAdapter } from './shell.js';
 
 // Worktree Manager
 export { WorktreeManager } from './worktree.js';

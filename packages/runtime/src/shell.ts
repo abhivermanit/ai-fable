@@ -8,6 +8,58 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BUFFER = 5 * 1024 * 1024;
 
 /**
+ * Abstraction for platform-specific shell invocation.
+ *
+ * The current implementation provides PosixShellAdapter (macOS/Linux).
+ * A WindowsShellAdapter can be added in the future without changing
+ * the exec/execOrThrow API.
+ *
+ * TODO: Implement WindowsShellAdapter using cmd.exe or PowerShell
+ * for cross-platform support.
+ */
+export interface ShellAdapter {
+  /** The shell binary to invoke (e.g., 'sh', 'cmd.exe') */
+  readonly shell: string;
+  /** Arguments to pass before the command (e.g., ['-c'] for sh) */
+  args(command: string): string[];
+}
+
+/**
+ * POSIX shell adapter (macOS/Linux).
+ * Uses /bin/sh -c to execute commands.
+ */
+export class PosixShellAdapter implements ShellAdapter {
+  readonly shell = 'sh';
+
+  args(command: string): string[] {
+    return ['-c', command];
+  }
+}
+
+// TODO: Implement WindowsShellAdapter for cross-platform support
+// export class WindowsShellAdapter implements ShellAdapter {
+//   readonly shell = 'cmd.exe';
+//   args(command: string): string[] { return ['/c', command]; }
+// }
+
+/** The active shell adapter. Change this to swap platforms. */
+let activeAdapter: ShellAdapter = new PosixShellAdapter();
+
+/**
+ * Set the shell adapter (primarily for testing or platform switching).
+ */
+export function setShellAdapter(adapter: ShellAdapter): void {
+  activeAdapter = adapter;
+}
+
+/**
+ * Get the current shell adapter.
+ */
+export function getShellAdapter(): ShellAdapter {
+  return activeAdapter;
+}
+
+/**
  * Execute a shell command and return the result.
  *
  * Supports:
@@ -30,7 +82,8 @@ export async function exec(command: string, options: ShellOptions = {}): Promise
   let aborted = false;
 
   return new Promise<ShellResult>((resolve) => {
-    const child = spawn('sh', ['-c', command], {
+    const adapter = activeAdapter;
+    const child = spawn(adapter.shell, adapter.args(command), {
       cwd,
       env: env ? { ...process.env, ...env } : process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -46,6 +99,10 @@ export async function exec(command: string, options: ShellOptions = {}): Promise
       if (resolved) return;
       resolved = true;
       clearTimeout(timer);
+      // Clean up abort listener to avoid leaks in long-running sessions
+      if (signal && abortHandler) {
+        signal.removeEventListener('abort', abortHandler);
+      }
       resolve({
         exitCode,
         stdout,
@@ -63,15 +120,17 @@ export async function exec(command: string, options: ShellOptions = {}): Promise
     }, timeoutMs);
 
     // Abort signal
+    let abortHandler: (() => void) | undefined;
     if (signal) {
       if (signal.aborted) {
         aborted = true;
         child.kill('SIGKILL');
       } else {
-        signal.addEventListener('abort', () => {
+        abortHandler = () => {
           aborted = true;
           child.kill('SIGKILL');
-        }, { once: true });
+        };
+        signal.addEventListener('abort', abortHandler, { once: true });
       }
     }
 

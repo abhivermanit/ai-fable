@@ -80,6 +80,12 @@ export class FileOps {
 
   /**
    * Apply a patch: replace `oldText` with `newText` in a file.
+   *
+   * TODO: Replace this simple string-replace approach with a richer
+   * PatchOperation / TextEdit[] model (similar to LSP TextEdits) that
+   * supports line-range replacements, multi-edit batches, and conflict
+   * detection. Not needed until Milestone 5+ when verification needs
+   * to reason about diffs.
    */
   async patch(filePath: string, oldText: string, newText: string): Promise<FileOperationResult> {
     const resolved = this.resolvePath(filePath);
