@@ -2,7 +2,7 @@
   "name": "@ai-fable/memory",
   "version": "0.0.0",
   "private": true,
-  "description": "Memory and state management",
+  "description": "Memory Layer — structured state records for tasks, execution history, verification, and artifacts",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,9 +17,15 @@
     "dev": "tsc --watch",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@ai-fable/core": "workspace:*"
+  },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
   }
 }
